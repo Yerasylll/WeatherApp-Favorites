@@ -10,6 +10,7 @@ import SwiftUI
 struct WeatherView: View {
     @StateObject private var viewModel = WeatherViewModel()
     @State private var showingSettings = false
+    @FocusState private var isSearchFieldFocused: Bool  // Add this
     
     var body: some View {
         NavigationView {
@@ -18,24 +19,75 @@ struct WeatherView: View {
                     .ignoresSafeArea()
                 
                 VStack(spacing: 20) {
-                    // Search
-                    HStack {
-                        TextField("Enter city name", text: $viewModel.city)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .padding(.horizontal)
-                        
-                        Button(action: {
-                            Task { await viewModel.fetchWeather() }
-                        }) {
-                            Image(systemName: "magnifyingglass")
-                                .padding()
-                                .background(Color.blue)
-                                .foregroundColor(.white)
-                                .clipShape(Circle())
+                    // Search with Suggestions
+                    VStack(spacing: 0) {
+                        HStack {
+                            TextField("Enter city name", text: $viewModel.city)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .padding(.horizontal)
+                                .focused($isSearchFieldFocused)
+                                .onChange(of: viewModel.city) { oldValue, newValue in
+                                    // Update suggestions as user types
+                                    viewModel.updateSuggestions(for: newValue)
+                                }
+                                .onSubmit {
+                                    // When user presses return
+                                    Task { await viewModel.fetchWeather() }
+                                    viewModel.isShowingSuggestions = false
+                                }
+                            
+                            Button(action: {
+                                Task { await viewModel.fetchWeather() }
+                                viewModel.isShowingSuggestions = false
+                            }) {
+                                Image(systemName: "magnifyingglass")
+                                    .padding()
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .clipShape(Circle())
+                            }
+                            .disabled(viewModel.isLoading)
                         }
-                        .disabled(viewModel.isLoading)
+                        .padding()
+                        
+                        // Suggestions Dropdown
+                        if viewModel.isShowingSuggestions && isSearchFieldFocused {
+                            ScrollView {
+                                VStack(spacing: 0) {
+                                    ForEach(viewModel.suggestions, id: \.self) { suggestion in
+                                        Button(action: {
+                                            viewModel.selectSuggestion(suggestion)
+                                            isSearchFieldFocused = false
+                                        }) {
+                                            HStack {
+                                                Image(systemName: "location")
+                                                    .foregroundColor(.blue)
+                                                Text(suggestion)
+                                                    .foregroundColor(.primary)
+                                                Spacer()
+                                            }
+                                            .padding(.horizontal, 20)
+                                            .padding(.vertical, 12)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                        }
+                                        .background(Color.white)
+                                        .overlay(
+                                            Rectangle()
+                                                .frame(height: 0.5)
+                                                .foregroundColor(.gray.opacity(0.3)),
+                                            alignment: .bottom
+                                        )
+                                    }
+                                }
+                                .background(Color.white)
+                                .cornerRadius(10)
+                                .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+                                .padding(.horizontal)
+                                .padding(.top, -10)
+                            }
+                            .frame(maxHeight: 200)
+                        }
                     }
-                    .padding()
                     
                     // Error/Offline message
                     if let error = viewModel.errorMessage {
@@ -69,7 +121,7 @@ struct WeatherView: View {
                                     
                                     Text("Humidity: \(weather.current.humidity)%")
                                     Text("Wind: \(Int(weather.current.windSpeed)) km/h")
-                                    Text("Updated: \(weather.current.time)")
+                                    Text("Updated: \(formatTime(weather.current.time))")
                                         .font(.caption)
                                         .foregroundColor(.gray)
                                 }
@@ -93,8 +145,8 @@ struct WeatherView: View {
                                                 Image(systemName: viewModel.getWeatherIcon(code: daily.weatherCode[index]))
                                                     .frame(width: 30)
                                                 
-                                                Text("H: \(Int(daily.temperatureMax[index]))°")
-                                                Text("L: \(Int(daily.temperatureMin[index]))°")
+                                                Text("H: \(Int(daily.temperatureMax[index]))\(viewModel.temperatureUnit.rawValue)")
+                                                Text("L: \(Int(daily.temperatureMin[index]))\(viewModel.temperatureUnit.rawValue)")
                                             }
                                             .padding(.horizontal)
                                         }
@@ -126,6 +178,11 @@ struct WeatherView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView(selectedUnit: $viewModel.temperatureUnit)
             }
+            .onTapGesture {
+                // Dismiss suggestions when tapping outside
+                isSearchFieldFocused = false
+                viewModel.isShowingSuggestions = false
+            }
         }
     }
     
@@ -135,6 +192,18 @@ struct WeatherView: View {
         guard let date = formatter.date(from: dateString) else { return dateString }
         
         formatter.dateFormat = "E, MMM d"
+        return formatter.string(from: date)
+    }
+    
+    private func formatTime(_ timeString: String) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        
+        guard let date = formatter.date(from: timeString) else {
+            return timeString
+        }
+        
+        formatter.dateFormat = "h:mm a"
         return formatter.string(from: date)
     }
 }

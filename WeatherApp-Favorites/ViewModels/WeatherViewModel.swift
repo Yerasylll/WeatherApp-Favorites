@@ -12,21 +12,17 @@ import Combine
 @MainActor
 class WeatherViewModel: ObservableObject {
     @Published var weather: WeatherResponse?
-    @Published var city = ""
+    @Published var city = "Astana"  // Set default to Astana
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var isOffline = false
-    @Published var temperatureUnit: TemperatureUnit = .celsius {
-        didSet {
-            UserDefaults.standard.set(temperatureUnit.rawValue, forKey: "temperatureUnit")
-            if !city.isEmpty {
-                Task { await fetchWeather() }
-            }
-        }
-    }
+    @Published var temperatureUnit: TemperatureUnit = .celsius
+    @Published var suggestions: [String] = [] 
+    @Published var isShowingSuggestions = false  
     
     private let service = WeatherService()
     private let cache = CacheManager.shared
+    private let cityService = CityService()  
     
     init() {
         if let savedUnit = UserDefaults.standard.string(forKey: "temperatureUnit"),
@@ -34,6 +30,11 @@ class WeatherViewModel: ObservableObject {
             temperatureUnit = unit
         }
         loadCachedWeather()
+        
+        // Load weather for default city on init
+        Task {
+            await fetchWeather()
+        }
     }
     
     func fetchWeather() async {
@@ -44,6 +45,7 @@ class WeatherViewModel: ObservableObject {
         
         isLoading = true
         errorMessage = nil
+        isShowingSuggestions = false  // Hide suggestions when fetching
         
         do {
             let weather = try await service.fetchWeather(for: city, units: temperatureUnit)
@@ -56,6 +58,27 @@ class WeatherViewModel: ObservableObject {
         }
         
         isLoading = false
+    }
+    
+    // New function: Update suggestions as user types
+    func updateSuggestions(for input: String) {
+        if input.isEmpty {
+            // Show popular cities when empty
+            suggestions = ["Astana", "Almaty", "London", "New York", "Tokyo", "Paris"]
+            isShowingSuggestions = true
+        } else {
+            suggestions = cityService.getSuggestions(for: input)
+            isShowingSuggestions = !suggestions.isEmpty
+        }
+    }
+    
+    // New function: Select a suggestion
+    func selectSuggestion(_ suggestion: String) {
+        city = suggestion
+        isShowingSuggestions = false
+        Task {
+            await fetchWeather()
+        }
     }
     
     func loadCachedWeather() {

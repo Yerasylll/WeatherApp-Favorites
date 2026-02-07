@@ -19,7 +19,7 @@ struct FavoriteCity: Codable, Identifiable {
     var dictionary: [String: Any] {
         return [
             "id": id,
-            "name": name,
+            "cityName": name,
             "note": note ?? "",
             "createdAt": createdAt.timeIntervalSince1970,
             "createdBy": createdBy,
@@ -45,12 +45,22 @@ struct FavoriteCity: Codable, Identifiable {
     }
     
     init?(dictionary: [String: Any]) {
+        print("🔍 Creating FavoriteCity from dictionary")
+        print("🔍 Dictionary keys: \(dictionary.keys)")
+        
         guard let id = dictionary["id"] as? String,
               let name = dictionary["name"] as? String,
               let createdBy = dictionary["createdBy"] as? String,
               let latitude = dictionary["latitude"] as? Double,
               let longitude = dictionary["longitude"] as? Double,
               let createdAt = dictionary["createdAt"] as? Double else {
+            print("Failed to parse required fields")
+            print("   id: \(String(describing: dictionary["id"]))")
+            print("   name: \(String(describing: dictionary["name"]))")
+            print("   createdBy: \(String(describing: dictionary["createdBy"]))")
+            print("   latitude: \(String(describing: dictionary["latitude"]))")
+            print("   longitude: \(String(describing: dictionary["longitude"]))")
+            print("   createdAt: \(String(describing: dictionary["createdAt"]))")
             return nil
         }
         
@@ -61,5 +71,7 @@ struct FavoriteCity: Codable, Identifiable {
         self.createdBy = createdBy
         self.latitude = latitude
         self.longitude = longitude
+        
+        print("Successfully created FavoriteCity: \(name)")
     }
 }

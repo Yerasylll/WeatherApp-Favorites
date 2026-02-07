@@ -41,7 +41,6 @@ class FirebaseRepository: ObservableObject {
             favoritesRef.removeObserver(withHandle: existingHandle)
         }
         
-        // Add new listener
         handle = favoritesRef.observe(.value) { [weak self] snapshot in
             print("Firebase listener triggered")
             

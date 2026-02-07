@@ -15,7 +15,7 @@ struct EmailAuthView: View {
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var isCreatingAccount = false
-    @State private var errorMessage: String?
+    @State private var validationErrors: [String] = []
     
     var body: some View {
         NavigationView {
@@ -25,23 +25,55 @@ struct EmailAuthView: View {
                         .keyboardType(.emailAddress)
                         .autocapitalization(.none)
                         .textContentType(.emailAddress)
+                        .onChange(of: email) { _ in
+                            validateForm()
+                        }
+                    
+                    if validationErrors.contains("email") {
+                        Text("Please enter a valid email")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
                 }
                 
                 Section(header: Text("Password")) {
                     SecureField("Password", text: $password)
-                        .textContentType(.password)
+                        .textContentType(isCreatingAccount ? .newPassword : .password)
+                        .onChange(of: password) { _ in
+                            validateForm()
+                        }
                     
                     if isCreatingAccount {
                         SecureField("Confirm Password", text: $confirmPassword)
-                            .textContentType(.password)
+                            .textContentType(.newPassword)
+                            .onChange(of: confirmPassword) { _ in
+                                validateForm()
+                            }
+                    }
+                    
+                    if validationErrors.contains("password") {
+                        Text("Password must be at least 6 characters")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                    
+                    if validationErrors.contains("password_match") {
+                        Text("Passwords don't match")
+                            .font(.caption)
+                            .foregroundColor(.red)
                     }
                 }
                 
-                if let error = errorMessage {
+                // Show Firebase errors
+                if let error = authService.errorMessage {
                     Section {
-                        Text(error)
-                            .foregroundColor(.red)
-                            .font(.caption)
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundColor(.orange)
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
                     }
                 }
                 
@@ -66,7 +98,8 @@ struct EmailAuthView: View {
                     Button(isCreatingAccount ? "Already have an account? Sign In" : "Need an account? Create One") {
                         withAnimation {
                             isCreatingAccount.toggle()
-                            errorMessage = nil
+                            authService.errorMessage = nil
+                            validationErrors.removeAll()
                         }
                     }
                     .foregroundColor(.blue)
@@ -74,6 +107,7 @@ struct EmailAuthView: View {
                 }
             }
             .navigationTitle(isCreatingAccount ? "Create Account" : "Sign In")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
                 leading: Button("Cancel") {
                     isPresented = false
@@ -83,15 +117,36 @@ struct EmailAuthView: View {
     }
     
     private var isFormValid: Bool {
-        if email.isEmpty || password.isEmpty {
-            return false
-        }
+        let emailValid = isValidEmail(email)
+        let passwordValid = password.count >= 6
         
         if isCreatingAccount {
-            return password == confirmPassword && password.count >= 6
+            return emailValid && passwordValid && password == confirmPassword
         }
         
-        return true
+        return emailValid && passwordValid
+    }
+    
+    private func validateForm() {
+        validationErrors.removeAll()
+        
+        if !isValidEmail(email) && !email.isEmpty {
+            validationErrors.append("email")
+        }
+        
+        if password.count < 6 && !password.isEmpty {
+            validationErrors.append("password")
+        }
+        
+        if isCreatingAccount && password != confirmPassword && !confirmPassword.isEmpty {
+            validationErrors.append("password_match")
+        }
+    }
+    
+    private func isValidEmail(_ email: String) -> Bool {
+        let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+        let emailPredicate = NSPredicate(format:"SELF MATCHES %@", emailRegex)
+        return emailPredicate.evaluate(with: email)
     }
     
     private func signIn() {
@@ -100,19 +155,20 @@ struct EmailAuthView: View {
                 try await authService.signIn(email: email, password: password)
                 isPresented = false
             } catch {
-                errorMessage = error.localizedDescription
+                // Error is already handled in AuthenticationService
+                print("Sign in error: \(error)")
             }
         }
     }
     
     private func createAccount() {
         guard password == confirmPassword else {
-            errorMessage = "Passwords don't match"
+            authService.errorMessage = "Passwords don't match"
             return
         }
         
         guard password.count >= 6 else {
-            errorMessage = "Password must be at least 6 characters"
+            authService.errorMessage = "Password must be at least 6 characters"
             return
         }
         
@@ -121,7 +177,8 @@ struct EmailAuthView: View {
                 try await authService.signUp(email: email, password: password)
                 isPresented = false
             } catch {
-                errorMessage = error.localizedDescription
+                // Error is already handled in AuthenticationService
+                print("Sign up error: \(error)")
             }
         }
     }

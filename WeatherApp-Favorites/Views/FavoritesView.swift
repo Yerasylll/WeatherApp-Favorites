@@ -9,8 +9,8 @@ import SwiftUI
 import FirebaseDatabase
 
 struct FavoritesView: View {
-    @StateObject private var repository = FirebaseRepository.shared 
-        @StateObject private var authService = AuthenticationService.shared
+    @StateObject private var repository = FirebaseRepository.shared
+    @StateObject private var authService = AuthenticationService.shared
     
     @State private var showingAddFavorite = false
     @State private var showingAuthSheet = false
@@ -154,16 +154,6 @@ struct FavoritesView: View {
                                     print("Sign out error: \(error)")
                                 }
                             }
-                            
-                            // Debug button
-                            Button("Debug Info") {
-                                print("=== DEBUG INFO ===")
-                                print("User authenticated: \(authService.isAuthenticated)")
-                                print("User ID: \(authService.getCurrentUserId() ?? "nil")")
-                                print("Favorites count: \(repository.favoriteCities.count)")
-                                print("Favorites: \(repository.favoriteCities.map { $0.name })")
-                                print("=== END DEBUG ===")
-                            }
                         } label: {
                             Image(systemName: "person.circle")
                         }
@@ -234,9 +224,6 @@ struct FavoritesView: View {
         return formatter.localizedString(for: date, relativeTo: Date())
     }
     
-    // Add this AFTER the closing brace of FavoritesView struct
-    // but BEFORE the closing brace of the file
-
     // MARK: - FavoriteDetailView
     struct FavoriteDetailView: View {
         let favorite: FavoriteCity
